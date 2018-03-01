@@ -1,20 +1,22 @@
 #!/usr/bin/perl
 # Downloaded from exchange.nagios.org
-# URL: http://exchange.nagios.org/directory/Plugins/Anti-2DVirus/Amavis/check_amavis/details
+# URL: https://exchange.nagios.org/directory/Plugins/Anti-2DVirus/Amavis/check_amavis/details
 #
 # Maintained later on by Elan Ruusamäe <glen@pld-linux.org>
-# http://cvs.pld-linux.org/packages/nagios-plugin-check_amavis/
-# v1.1, 2011-12-22
+# https://github.com/glensc/monitoring-plugin-check_amavis
 
 use Getopt::Long;
 use MIME::Entity;
 use Net::SMTP;
+use strict;
+use warnings;
 
 my $server = '';
 my $port = 10024;
 my $from = '';
 my $to = '';
 my $debug = 0;
+my $timeout = 15;
 
 my %STATES = (
 	"OK" => 0,
@@ -24,10 +26,11 @@ my %STATES = (
 	"DEPENDENT" => 4,
 );
 
-$result = GetOptions (
+GetOptions (
 	"server|s=s"    => \$server,
 	"port|p=s"      => \$port,
 	"from|f=s"      => \$from,
+	"timeout=s"     => \$timeout,
 	"debug|d"       => \$debug,
 	"to|t=s"        => \$to,
 );
@@ -63,6 +66,7 @@ my $smtp = new Net::SMTP(
 	$server,
 	Port => $port,
 	Debug => $debug,
+	Timeout => $timeout,
 );
 
 if (!$smtp) {
@@ -78,7 +82,10 @@ $smtp->dataend();
 my $result = $smtp->message();
 $smtp->close();
 
-if ($result =~/(2.7.[01]|5.7.[01]) (Ok, discarded|Reject, id=)/) {
+warn "RESULT[$result]\n" if $debug;
+
+# <<< 250 2.5.0 Ok, id=21563-09, BOUNCE
+if ($result =~ /[25]\.[057]\.[01] (Ok[,:])?/ && $result =~ /discarded|BOUNCE|Reject|queued/) {
 	print "OK - All fine\n";
 	exit $STATES{OK};
 } else {
